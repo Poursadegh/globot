@@ -1,4 +1,4 @@
-# globot
+# globot -select-option Fixed
 
 With GPT-4V, we can finally complete the original vision of [natbot](https://github.com/nat/natbot).
 
