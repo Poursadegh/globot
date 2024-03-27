@@ -223,13 +223,13 @@ class Globot:
 
             visible = node.on_screen(root.bounds) and 'visibility: hidden' not in node.attributes.get('style', '')
 
-            if visible and (clickable or inputable):
-                if clickable:
-                    clickable_elements[count] = node
-                if inputable:
-                    input_elements[count] = node
-                node.llm_id = count
-                count += 1
+           # if visible and (clickable or inputable):
+            if clickable:
+                clickable_elements[count] = node
+            if inputable:
+                input_elements[count] = node
+            node.llm_id = count
+            count += 1
         
             for child in node.children:
                 find_interactive_elements(child)
