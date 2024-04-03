@@ -5,9 +5,10 @@ import json
 from PIL import Image
 from playwright.sync_api import sync_playwright
 
-
-VOID_ELEMENTS = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}
-READABLE_ATTRIBUTES = {'title', 'alt', 'href', 'placeholder', 'label', 'value', 'caption', 'summary', 'aria-label', 'aria-describedby', 'datetime', 'download', 'selected', 'checked', 'type'}
+VOID_ELEMENTS = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track',
+                 'wbr'}
+READABLE_ATTRIBUTES = {'title', 'alt', 'href', 'placeholder', 'label', 'value', 'caption', 'summary', 'aria-label',
+                       'aria-describedby', 'datetime', 'download', 'selected', 'checked', 'type'}
 
 UNCLICKABLE_ELEMENTS = {'html', 'head', 'body'}
 CLICKABLE_ELEMENTS = {'a', 'button', 'img', 'details', 'summary'}
@@ -38,7 +39,7 @@ class DOMNode:
         self.attributes = {}
         attrs = nodes['attributes'][i]
         for att1, att2 in zip(attrs[::2], attrs[1::2]):
-            self.attributes[strings[att1]] = strings[att2][:100] # cut off long URLs
+            self.attributes[strings[att1]] = strings[att2][:100]  # cut off long URLs
 
         self.readable_attributes = {k: v for k, v in self.attributes.items() if k in READABLE_ATTRIBUTES}
 
@@ -65,9 +66,9 @@ class DOMNode:
         if len(self.children) > 0:
             return any([child.on_screen(screen_bounds) for child in self.children])
 
-        if self.bounds is None or len(self.bounds) != 4 or self.bounds[2]*self.bounds[3] == 0:
+        if self.bounds is None or len(self.bounds) != 4 or self.bounds[2] * self.bounds[3] == 0:
             return False
-        
+
         x, y, w, h = self.bounds
         win_upper_bound, win_left_bound, win_width, win_height = screen_bounds
         win_right_bound = win_left_bound + win_width
@@ -79,14 +80,15 @@ class Globot:
     def __init__(self, headless=False):
         playwright = sync_playwright().start()
         self.browser = playwright.chromium.launch(headless=headless)
-        
+
         # Remove HiDPI if on a low resolution screen
         device = playwright.devices['Desktop Chrome HiDPI']
         self.context = self.browser.new_context(**device)
         self.context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         # Some websites require cookies to be set
         self.context.add_cookies([
-            {"name": "cookie_name", "value": "cookie_value", "domain": "example.com", "path": "/", "expires": int(time.time()) + 3600}
+            {"name": "cookie_name", "value": "cookie_value", "domain": "example.com", "path": "/",
+             "expires": int(time.time()) + 3600}
         ])
         self.page = self.context.new_page()
 
@@ -95,7 +97,7 @@ class Globot:
         dt = 0.1
         stable_time = 0
 
-        for _ in range(int(timeout/dt)):
+        for _ in range(int(timeout / dt)):
             new_dom = self.client.send(
                 "DOMSnapshot.captureSnapshot",
                 {"computedStyles": [], "includeDOMRects": True, "includePaintOrder": True},
@@ -122,7 +124,7 @@ class Globot:
     def go_back(self):
         self.page.go_back()
         self.wait_for_load()
-        
+
     def scroll(self, direction):
         if direction == "up":
             self.page.mouse.wheel(delta_x=0, delta_y=-900)
@@ -138,7 +140,7 @@ class Globot:
             links[i].removeAttribute("target");
         }
         """
-        self.page.evaluate(js) 
+        self.page.evaluate(js)
         assert node.center is not None, "Cannot click on node with no bounds"
         self.page.mouse.click(*node.center)
         self.wait_for_load()
@@ -166,8 +168,8 @@ class Globot:
         document = dom['documents'][0]
         dom_layout = document['layout']
         dom_nodes = document['nodes']
-        
-        screen_bounds =  dom_layout['bounds'][0]
+
+        screen_bounds = dom_layout['bounds'][0]
         # For some reason `window.devicePixelRatio` this gives the wrong answer sometimes
         device_pixel_ratio = screen_bounds[2] / self.page.evaluate("window.screen.width")
 
@@ -186,7 +188,7 @@ class Globot:
                 bounds = dom_layout['bounds'][nodeIndex_flipped[i]]
                 bounds = [int(b / device_pixel_ratio) for b in bounds]
                 node.bounds = bounds
-                node.center = (int(bounds[0] + bounds[2]/2), int(bounds[1] + bounds[3]/2))
+                node.center = (int(bounds[0] + bounds[2] / 2), int(bounds[1] + bounds[3] / 2))
 
             if i in dom_nodes['isClickable']['index']:
                 node.isClickable = True
@@ -215,25 +217,26 @@ class Globot:
         count = 0
         input_elements = {}
         clickable_elements = {}
+
         def find_interactive_elements(node):
             nonlocal count
             clickable = node.nodeName in CLICKABLE_ELEMENTS and node.isClickable and node.center is not None
 
             inputable = node.nodeName in INPUT_ELEMENTS or node.inputValue is not None
-
+            select_option = node.nodeName == 'select' or node.nodeName == 'option'
             visible = node.on_screen(root.bounds) and 'visibility: hidden' not in node.attributes.get('style', '')
 
-           # if visible and (clickable or inputable):
-            if clickable:
-                clickable_elements[count] = node
-            if inputable:
-                input_elements[count] = node
-            node.llm_id = count
-            count += 1
-        
+            if visible and (clickable or inputable) or select_option:
+                if clickable:
+                    clickable_elements[count] = node
+                if inputable or select_option:
+                    input_elements[count] = node
+                node.llm_id = count
+                count += 1
+
             for child in node.children:
                 find_interactive_elements(child)
-        
+
         find_interactive_elements(root)
 
         return screenshot, input_elements, clickable_elements
